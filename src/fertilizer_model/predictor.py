@@ -1,7 +1,6 @@
-import pickle
 import os
 import numpy as np
-import gzip
+import joblib
 
 class FertilizerPredictor:
     """
@@ -27,11 +26,8 @@ class FertilizerPredictor:
             self.model = None
         
         try:
-            label_encoder_path
             self.label_encoder = self._load_pickle_file(label_encoder_path)
-            soil_encoder_path
             self.soil_encoder = self._load_pickle_file(soil_encoder_path)
-            crop_encoder_path
             self.crop_encoder = self._load_pickle_file(crop_encoder_path)
         except FileNotFoundError:
             self.label_encoder = None
@@ -40,44 +36,19 @@ class FertilizerPredictor:
 
     def _load_pickle_file(self, file_path):
         """
-        Load a pickle file, handling both compressed and uncompressed formats.
-        
+        Load a pickle file using joblib (handles both compressed and uncompressed).
+
         Parameters:
         -----------
         filepath : str
             Path to the pickle file
-            
+
         Returns:
         --------
         object
             The unpickled object
         """
-        # First, try to detect if it's compressed by reading the first bytes
-        with open(file_path, 'rb') as f:
-            first_bytes = f.read(2)
-        
-        # Check for gzip magic number (1f 8b) or zlib header (78 01, 78 9c, 78 da, etc.)
-        is_compressed = (
-            first_bytes[:2] == b'\x1f\x8b' or  # gzip
-            (first_bytes[0] == 0x78 and first_bytes[1] in [0x01, 0x5e, 0x9c, 0xda])  # zlib
-        )
-        
-        if is_compressed:
-            # Try decompressing with gzip first
-            try:
-                with gzip.open(file_path, 'rb') as f:
-                    return pickle.load(f)
-            except (gzip.BadGzipFile, OSError):
-                # If gzip fails, try raw zlib decompression
-                import zlib
-                with open(file_path, 'rb') as f:
-                    compressed_data = f.read()
-                decompressed_data = zlib.decompress(compressed_data)
-                return pickle.loads(decompressed_data)
-        else:
-            # Not compressed, load normally
-            with open(file_path, 'rb') as f:
-                return pickle.load(f)
+        return joblib.load(file_path)
     
     def predict_fertilizer(self, input_data):
         """
