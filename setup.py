@@ -16,7 +16,7 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     package_data={
-        "fertilizer_model": ["*.pkl"],
+        "fertilizer_model": ["*.pkl", "*.joblib", "*.h5"],
     },
     include_package_data=True,
     install_requires=requirements,

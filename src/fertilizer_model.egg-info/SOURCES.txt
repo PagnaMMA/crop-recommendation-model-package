@@ -1,6 +1,13 @@
+MANIFEST.in
 README.md
+requirements.txt
 setup.py
 src/fertilizer_model/__init__.py
+src/fertilizer_model/fertilizer_crop_encoder.pkl
+src/fertilizer_model/fertilizer_label_encoder.pkl
+src/fertilizer_model/fertilizer_model_Gradient_Boosting.pkl
+src/fertilizer_model/fertilizer_scaler.pkl
+src/fertilizer_model/fertilizer_soil_encoder.pkl
 src/fertilizer_model/predictor.py
 src/fertilizer_model.egg-info/PKG-INFO
 src/fertilizer_model.egg-info/SOURCES.txt
