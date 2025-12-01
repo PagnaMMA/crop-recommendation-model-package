@@ -6,7 +6,7 @@ with open('requirements.txt') as f:
 
 setup(
     name="fertilizer-model",
-    version="0.1.0",
+    version="0.1.1",
     author="Mohamed A. Mouliom Pagna",
     author_email="mohamed.mouliom@aims-cameroon.org",
     description="A machine learning model for fertilizer recommendation",
