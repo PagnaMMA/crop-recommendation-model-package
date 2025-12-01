@@ -1,0 +1,7 @@
+# Treat model files as binary (This is to prevent line ending conversions)
+*.pkl binary
+*.joblib binary
+*.h5 binary
+*.hdf5 binary
+*.pth binary
+*.pt binary
