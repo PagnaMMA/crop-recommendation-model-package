@@ -1,74 +1,36 @@
-# Fertilizer Prediction Model
+# Crop Type Recommendation Model
 
-A machine learning model package for predicting fertilizer.
+A machine learning model package to recommend a particular crop for a specific location according to some conditions.
 
 ## Installation
 
 Install directly from GitHub:
 ```bash
-pip install git+https://github.com/PagnaMMA/fertilizer-recommendation-model-package.git
+pip install git+https://github.com/PagnaMMA/crop-recommendation-model-package.git
 ```
 
 ## Usage
 ```python
-from fertilizer_model import FertilizerPredictor
+from croptype_model import CropTypePredictor
 
 # Initialize the predictor
-predictor = FertilizerPredictor()
+predictor = CropTypePredictor()
 
 # Make predictions
-features = [30.0, 200.0, 7.0, 0.70, 75.0, 85.0, 70.0, 'Alkaline Soil', 'wheat']  # Example features
-prediction = predictor.predict_fertilizer(features)
-print(f"Predicted fertilizer: {prediction}")
+# Example feature
+features = [25.5, 110.0, 6.5, 0.65, 60.0, 70.0, 65.0, 'Alkaline Soil', 1.5]  
+
+prediction = predictor.predict_crop(features)
+print(f"Predicted crop: {prediction}")
 ```
 
 ## Model Details
 
 - Model type: [Gradient Boosting]
-- Features: [Temperature, Rainfall, PH, Moisture, Nitrogen, Potassium,
-         Phosphorous, Soil_Type, Crop]
-- Target: fertilizer
+- Features: [Temperature, Rainfall, PH, Moisture, Nitrogen, Potassium, Phosphorous, Soil_Type, Carbon]
+- Target: Crop type
 
 ## Version History
 
 - 0.1.0: Initial release
 ```
-
-## Step 9: Create `.gitignore`
-```
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-venv/
-env/
-ENV/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db

@@ -2,9 +2,9 @@ import os
 import numpy as np
 import joblib
 
-class FertilizerPredictor:
+class CropTypePredictor:
     """
-    A class to load,make predictions with the trained fertilizer model.
+    A class to load,make predictions with the trained crop type model.
     And finally display the results
     """
     
@@ -14,10 +14,8 @@ class FertilizerPredictor:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         
         # Loadind of the model file(s)
-        model_path = os.path.join(current_dir, 'fertilizer_model_Gradient_Boosting.pkl')
-        label_encoder_path = os.path.join(current_dir, 'fertilizer_label_encoder.pkl')
-        soil_encoder_path = os.path.join(current_dir, 'fertilizer_soil_encoder.pkl')
-        crop_encoder_path = os.path.join(current_dir, 'fertilizer_crop_encoder.pkl')
+        model_path = os.path.join(current_dir, 'crop_model_Gradient_Boosting.pkl')
+        label_encoder_path = os.path.join(current_dir, 'label_encoders.pkl')
 
         try:
             model_path
@@ -27,12 +25,8 @@ class FertilizerPredictor:
         
         try:
             self.label_encoder = self._load_pickle_file(label_encoder_path)
-            self.soil_encoder = self._load_pickle_file(soil_encoder_path)
-            self.crop_encoder = self._load_pickle_file(crop_encoder_path)
         except FileNotFoundError:
             self.label_encoder = None
-            self.soil_encoder = None
-            self.crop_encoder = None
 
     def _load_pickle_file(self, file_path):
         """
@@ -50,17 +44,28 @@ class FertilizerPredictor:
         """
         return joblib.load(file_path)
     
-    def predict_fertilizer(self, input_data):
+    def predict_crop(self, input_data):
         """
-        Predict fertilizer with probability scores.
+        Predict crop type with probability scores.
 
         Parameters:
         -----------
-        input_data : list (same format as predict_fertilizer)
+        input_data : list
+
+        Input features in the following order:
+        temperature : float (Temperature in Celsius)
+        rainfall : float (Rainfall in mm)
+        ph : float (Soil pH level)
+        moisture : float (Soil moisture 0-1)
+        nitrogen : float (Nitrogen content)
+        potassium : float (Potassium content)
+        phosphorous : float (Phosphorous content)
+        soil : str (Soil type: 'Loamy Soil', 'Peaty Soil', 'Neutral Soil')
+        carbon : float (Carbon content)
 
         Returns:
         --------
-        tuple : (predicted_fertilizer, probability_dict)
+        tuple : (predicted_crop, probability_dict)
         """
         # Extract and encode features (same as above)
         temperature = input_data[0]
@@ -71,7 +76,7 @@ class FertilizerPredictor:
         potassium = input_data[5]
         phosphorous = input_data[6]
         soil = input_data[7]
-        crop = input_data[8]
+        carbon = input_data[8]
 
         # Encode categorical features
         try:
@@ -79,29 +84,23 @@ class FertilizerPredictor:
         except ValueError:
             raise ValueError(f"Unknown soil type: '{soil}'. Available: {list(self.soil_encoder.classes_)}")
 
-        try:
-            crop_encoded = self.crop_encoder.transform([crop])[0]
-        except ValueError:
-            raise ValueError(f"Unknown crop: '{crop}'. Available: {list(self.crop_encoder.classes_)}")
-
-
         features = np.array([[temperature, rainfall, ph, moisture, nitrogen,
-                            potassium, phosphorous, soil_encoded, crop_encoded]])
+                            potassium, phosphorous, soil_encoded, carbon]])
 
         # Get prediction and probabilities
         prediction_encoded = self.model.predict(features)[0]
         probabilities = self.model.predict_proba(features)[0]
 
         # Decode prediction
-        fertilizer_name = self.label_encoder.inverse_transform([prediction_encoded])[0]
+        crop_name = self.label_encoder.inverse_transform([prediction_encoded])[0]
         # Create probability dictionary
-        all_fertilizers = self.label_encoder.classes_
-        prob_dict = {fert: prob for fert, prob in zip(all_fertilizers, probabilities)}
+        all_crops = self.label_encoder.classes_
+        prob_dict = {crop: prob for crop, prob in zip(all_crops, probabilities)}
 
         # Sort by probability
         prob_dict = dict(sorted(prob_dict.items(), key=lambda x: x[1], reverse=True))
 
-        return fertilizer_name, prob_dict
+        return crop_name, prob_dict
 
     def display_result(self, input_data):
         """
@@ -113,7 +112,8 @@ class FertilizerPredictor:
         predicted_fertilizer : str
             Predicted fertilizer name.
         predicted_probabilities : dict, optional
-            Probability scores for each fertilizer."""
+            Probability scores for each fertilizer.
+            """
         
         print("\n" + "="*70)
         print("Predictions Results")
@@ -140,11 +140,12 @@ class FertilizerPredictor:
         print("\n" + "="*70)
         print(f"\n ==> Predictions:")
         try:
-            predicted, probabilities = self.predict_fertilizer(input_data)
-            print(f"\n Predicted Fertilizer: {predicted}")
-            print(f"\nTop 3 Predictions: Confidence level")
-            for i, (fert, prob) in enumerate(list(probabilities.items())[:3], 1):
-                print(f"  {i}. {fert}: {prob*100:.2f}%")
+            predicted, probabilities = self.predict_crop(input_data)
+            print(f"\n Predicted Crop: {predicted}")
+            print(f"\n Top 3 Predictions: Confidence level")
+            for i, (crop, prob) in enumerate(list(probabilities.items())[:3], 1):
+                bar = "█" * int(prob * 50)
+                print(f"  {i}. {crop:15s}: {bar} ==> {prob*100:.2f}%")
         except Exception as e:
             print(f" Error: {e}")
 

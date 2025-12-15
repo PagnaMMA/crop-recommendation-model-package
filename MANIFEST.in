@@ -1,5 +1,5 @@
 include README.md
 include requirements.txt
-recursive-include src/fertilizer_model *.pkl
-recursive-include src/fertilizer_model *.joblib
-recursive-include src/fertilizer_model *.h5
+recursive-include src/croptype_model *.pkl
+recursive-include src/croptype_model *.joblib
+recursive-include src/croptype_model *.h5
