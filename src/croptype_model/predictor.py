@@ -80,9 +80,9 @@ class CropTypePredictor:
 
         # Encode categorical features
         try:
-            soil_encoded = self.soil_encoder.transform([soil])[0]
+            soil_encoded = self.label_encoder.transform([soil])[0]
         except ValueError:
-            raise ValueError(f"Unknown soil type: '{soil}'. Available: {list(self.soil_encoder.classes_)}")
+            raise ValueError(f"Unknown soil type: '{soil}'. Available: {list(self.label_encoder.classes_)}")
 
         features = np.array([[temperature, rainfall, ph, moisture, nitrogen,
                             potassium, phosphorous, soil_encoded, carbon]])
@@ -126,7 +126,7 @@ class CropTypePredictor:
         potassium = input_data[5]
         phosphorous = input_data[6]
         soil = input_data[7]
-        crop = input_data[8]
+        carbon = input_data[8]
         print(f"\n ==> Input Data:")
         print(f" - Temperature: {temperature} °C")
         print(f" - Rainfall: {rainfall} mm")
@@ -136,7 +136,7 @@ class CropTypePredictor:
         print(f" - Potassium: {potassium} kg/ha")
         print(f" - Phosphorous: {phosphorous} kg/ha")
         print(f" - Soil Type: {soil}")
-        print(f" - Crop: {crop}")
+        print(f" - Carbon: {carbon} %")
         print("\n" + "="*70)
         print(f"\n ==> Predictions:")
         try:
