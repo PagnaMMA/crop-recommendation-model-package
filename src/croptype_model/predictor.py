@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import numpy as np
 import joblib
 
@@ -67,34 +68,38 @@ class CropTypePredictor:
         --------
         tuple : (predicted_crop, probability_dict)
         """
-        # Extract and encode features (same as above)
-        temperature = input_data[0]
-        rainfall = input_data[1]
-        ph = input_data[2]
-        moisture = input_data[3]
-        nitrogen = input_data[4]
-        potassium = input_data[5]
-        phosphorous = input_data[6]
-        soil = input_data[7]
-        carbon = input_data[8]
+        # Create input dataframe
+        input = pd.DataFrame([{
+        'Temperature': input_data[0],
+        'Rainfall': input_data[1],
+        'PH': input_data[2],
+        'Moisture': input_data[3],
+        'Nitrogen': input_data[4],
+        'Potassium': input_data[5],
+        'Phosphorous': input_data[6],
+        'Soil': input_data[7],
+        'Carbon': input_data[8]
+        }])
 
         # Encode categorical features
         try:
-            soil_encoded = self.label_encoder.transform([soil])[0]
+            input['Soil_Encoded'] = self.label_encoder['Soil'].transform(input['Soil'])
         except ValueError:
-            raise ValueError(f"Unknown soil type: '{soil}'. Available: {list(self.label_encoder.classes_)}")
+            raise ValueError(f"Unknown soil type: '{input['Soil']}'. Available: {list(self.label_encoder['Soil'].classes_)}")
 
-        features = np.array([[temperature, rainfall, ph, moisture, nitrogen,
-                            potassium, phosphorous, soil_encoded, carbon]])
-
+        features = ['Temperature', 'Rainfall', 'PH', 'Moisture', 'Nitrogen', 'Potassium',
+                'Phosphorous', 'Soil_Encoded', 'Carbon']
+        
+        X_input = input_data[features]
+        
         # Get prediction and probabilities
-        prediction_encoded = self.model.predict(features)[0]
-        probabilities = self.model.predict_proba(features)[0]
+        prediction_encoded = self.model.predict(X_input)[0]
+        probabilities = self.model.predict_proba(X_input)[0]
 
         # Decode prediction
-        crop_name = self.label_encoder.inverse_transform([prediction_encoded])[0]
+        crop_name = self.label_encoder['Crop'].inverse_transform([prediction_encoded])[0]
         # Create probability dictionary
-        all_crops = self.label_encoder.classes_
+        all_crops = self.label_encoder['Crop'].classes_
         prob_dict = {crop: prob for crop, prob in zip(all_crops, probabilities)}
 
         # Sort by probability
