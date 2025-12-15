@@ -25,7 +25,8 @@ class CropTypePredictor:
             self.model = None
         
         try:
-            self.label_encoder = self._load_pickle_file(label_encoder_path)
+            encoders_data = self._load_pickle_file(label_encoder_path)
+            self.label_encoder = encoders_data['label_encoders']
         except FileNotFoundError:
             self.label_encoder = None
 
@@ -89,8 +90,8 @@ class CropTypePredictor:
 
         features = ['Temperature', 'Rainfall', 'PH', 'Moisture', 'Nitrogen', 'Potassium',
                 'Phosphorous', 'Soil_Encoded', 'Carbon']
-        
-        X_input = input_data[features]
+
+        X_input = input[features]
         
         # Get prediction and probabilities
         prediction_encoded = self.model.predict(X_input)[0]
