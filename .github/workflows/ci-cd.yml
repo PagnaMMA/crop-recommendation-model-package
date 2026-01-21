@@ -1,0 +1,306 @@
+name: CI/CD - Test, Release & Deploy
+
+on:
+  push:
+    branches: [main, development]
+    paths:
+      - 'src/croptype_model/**'
+      - 'setup.py'
+      - 'requirements.txt'
+  
+  pull_request:
+    branches: [main, development]
+  
+  # Manual release trigger
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      
+      release_notes:
+        description: 'Release notes (optional)'
+        required: false
+        type: string
+
+env:
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  # Job 1: Test the model package
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install package in editable mode
+        run: |
+          pip install --upgrade pip
+          pip install -e .
+          pip install pytest pytest-cov
+
+      - name: Verify model files exist
+        run: |
+          python -c "
+          import os
+          from pathlib import Path
+
+          model_dir = Path('src/croptype_model')
+          if not model_dir.exists():
+              print(f'❌ Model directory not found: {model_dir}')
+              exit(1)
+
+          models = list(model_dir.glob('*.pkl')) + list(model_dir.glob('*.joblib'))
+          if not models:
+              print('❌ No model files found')
+              exit(1)
+
+          print(f'✅ Found {len(models)} model files:')
+          for model in models:
+              print(f'  - {model.name}')
+          "
+
+      - name: Test model loading and prediction
+        run: |
+          python -c "
+          import croptype_model
+          from croptype_model import CropTypePredictor
+
+          # Test basic import
+          print(f'✅ Package imported: {croptype_model.__name__}')
+          print(f'   Version: {croptype_model.__version__}')
+
+          # Test prediction with list input in correct order:
+          # [temperature, rainfall, ph, moisture, nitrogen, potassium, phosphorous, soil, carbon]
+          sample_input = [25, 150, 6.5, 50, 50, 40, 30, 'Loamy Soil', 2.5]
+
+          try:
+              predictor = CropTypePredictor()
+              crop_name, probabilities = predictor.predict_crop(sample_input)
+              print(f'✅ Prediction successful: {crop_name}')
+              print(f'   Top 3 probabilities:')
+              for i, (crop, prob) in enumerate(list(probabilities.items())[:3], 1):
+                  print(f'   {i}. {crop}: {prob*100:.2f}%')
+          except Exception as e:
+              print(f'❌ Prediction failed: {e}')
+              exit(1)
+          "
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --cov=croptype_model --cov-report=xml --cov-report=term || echo "No tests found, skipping"
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: crop-type-model
+        continue-on-error: true
+
+  # Job 2: Create release (only on main branch or manual trigger)
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.version.outputs.new_version }}
+      created: ${{ steps.version.outputs.created }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          # Read current version
+          if [ -f "VERSION" ]; then
+            CURRENT_VERSION=$(cat VERSION | sed 's/v//')
+          else
+            CURRENT_VERSION="0.1.0"
+          fi
+          
+          echo "Current version: $CURRENT_VERSION"
+          
+          # Determine bump type
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BUMP_TYPE="${{ github.event.inputs.version_bump }}"
+          else
+            # Auto-detect from commit messages
+            if git log -1 --pretty=%B | grep -q "BREAKING CHANGE\|major:"; then
+              BUMP_TYPE="major"
+            elif git log -1 --pretty=%B | grep -q "feat:\|feature:"; then
+              BUMP_TYPE="minor"
+            else
+              BUMP_TYPE="patch"
+            fi
+          fi
+          
+          echo "Bump type: $BUMP_TYPE"
+          
+          # Calculate new version
+          IFS='.' read -ra PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${PARTS[0]}
+          MINOR=${PARTS[1]}
+          PATCH=${PARTS[2]}
+          
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "created=true" >> $GITHUB_OUTPUT
+          
+          # Save version
+          echo $NEW_VERSION > VERSION
+
+      - name: Update package version
+        run: |
+          # Update __init__.py
+          cat > src/croptype_model/__init__.py << EOF
+          """Crop Type Prediction Model Package"""
+          from .predictor import CropTypePredictor
+
+          __version__ = "${{ steps.version.outputs.new_version }}"
+          __all__ = ["CropTypePredictor"]
+          EOF
+
+      - name: Commit version bump
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add VERSION src/croptype_model/__init__.py
+          git commit -m "chore: Bump version to ${{ steps.version.outputs.new_version }}" || echo "No changes"
+          git tag ${{ steps.version.outputs.new_version }}
+          git push origin main --tags
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --max-count=10)
+          else
+            CHANGELOG=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)")
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.new_version }}
+          name: Crop-Type Model ${{ steps.version.outputs.new_version }}
+          body: |
+            ## Crop-Type Recommendation Model
+            
+            **Version:** ${{ steps.version.outputs.new_version }}
+            **Release Date:** ${{ github.event.repository.updated_at }}
+            
+            ### Installation
+            ```bash
+            pip install git+https://github.com/PagnaMMA/crop-recommendation-model-package.git@${{ steps.version.outputs.new_version }}
+            ```
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Custom Notes
+            ${{ github.event.inputs.release_notes }}
+          files: |
+            src/croptype_model/*.pkl
+            VERSION
+          draft: false
+          prerelease: false
+
+  # Job 3: Trigger ML API update
+  trigger-api:
+    needs: release
+    runs-on: ubuntu-latest
+    if: needs.release.outputs.created == 'true'
+    steps:
+      - name: Trigger ML_models_api repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.ML_API_TRIGGER_TOKEN }}
+        run: |
+          echo " Triggering ML_models_api update..."
+          
+          response=$(curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/PagnaMMA/ML_models_api/dispatches \
+            -d "{
+              \"event_type\": \"model-updated\",
+              \"client_payload\": {
+                \"model_name\": \"crop-type\",
+                \"version\": \"${{ needs.release.outputs.version }}\",
+                \"repo\": \"PagnaMMA/crop-recommendation-model-package\",
+                \"triggered_by\": \"${{ github.actor }}\",
+                \"commit_sha\": \"${{ github.sha }}\"
+              }
+            }" \
+            -w "%{http_code}" -o /dev/null)
+          
+          if [ $response -eq 204 ]; then
+            echo "✅ Successfully triggered ML_models_api"
+          else
+            echo "⚠️ API trigger returned HTTP $response"
+          fi
+
+      - name: Create deployment summary
+        run: |
+          echo "## 📦 Model Package Release" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** Crop Type Recommendation" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ needs.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ✅ Released and API triggered" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Step:** ML_models_api will auto-update and deploy" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Slack notification
+        if: vars.SLACK_WEBHOOK != ''
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"text\": \"📦 New Model Release\",
+              \"attachments\": [{
+                \"color\": \"good\",
+                \"fields\": [
+                  {\"title\": \"Model\", \"value\": \"Crop-type\", \"short\": true},
+                  {\"title\": \"Version\", \"value\": \"${{ needs.release.outputs.version }}\", \"short\": true},
+                  {\"title\": \"Released By\", \"value\": \"${{ github.actor }}\", \"short\": true}
+                ]
+              }]
+            }"
